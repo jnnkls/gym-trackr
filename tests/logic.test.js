@@ -6,7 +6,10 @@ import {
   estimatedCount,
   firstYear,
   goalText,
+  isStaleResponse,
+  isValidEntity,
   level,
+  renderCard,
   yearGrid,
 } from "../gym-trackr.js";
 import { day, ev } from "./helpers.js";
@@ -132,4 +135,60 @@ test("firstYear takes min key year", () => {
       2026,
     ),
   ).toBe(2024);
+});
+
+test("malformed events are skipped, valid ones kept", () => {
+  /** @type {any[]} */
+  const bad = [
+    ev("2026-11-19T10:00:00Z", "xx"),
+    ev("garbage", "2026-11-19T10:00:00Z"),
+    { start: { date: "junk" }, end: { date: "junk" } },
+    { start: { dateTime: "2026-11-19T10:00:00Z" } },
+    {},
+    null,
+    "str",
+  ];
+  const d = aggregateDays(
+    [...bad, ev("2026-11-19T10:00:00+01:00", "2026-11-19T10:30:00+01:00")],
+    TZ,
+  );
+  expect([...d.keys()]).toEqual(["2026-11-19"]);
+  expect(get(d, "2026-11-19").minutes).toBe(30);
+  expect(Number.isFinite(firstYear(d, 2026))).toBe(true);
+});
+test("non-array response is rejected", () => {
+  expect(() => aggregateDays(/** @type {any} */ ({}), TZ)).toThrow();
+  expect(() => aggregateDays(/** @type {any} */ (null), TZ)).toThrow();
+});
+test("renderCard survives garbage years", () => {
+  for (const year of [Number.NaN, -1, 5, 999, 1e9]) {
+    expect(() =>
+      renderCard({
+        state: "ok",
+        year,
+        firstYear: 2026,
+        currentYear: 2026,
+        today: "2026-11-19",
+        days: new Map(),
+      }),
+    ).not.toThrow();
+  }
+});
+test("entity must be calendar.<id> without path or query characters", () => {
+  expect(isValidEntity("calendar.gym")).toBe(true);
+  expect(isValidEntity("calendar.gym_2")).toBe(true);
+  for (const e of [
+    "calendar.gym/../../config",
+    "calendar.gym?start=1990#",
+    "calendar.",
+    "calendar.Gym",
+    "sensor.x",
+    "",
+    undefined,
+  ])
+    expect(isValidEntity(e)).toBe(false);
+});
+test("response for another entity is stale", () => {
+  expect(isStaleResponse("calendar.a", "calendar.b")).toBe(true);
+  expect(isStaleResponse("calendar.a", "calendar.a")).toBe(false);
 });

@@ -8,6 +8,11 @@ export const WINDOW_DAYS = 90;
 /** @typedef {{start:{dateTime?:string,date?:string}, end:{dateTime?:string,date?:string}, summary?:string, description?:string|null}} CalEvent */
 /** @typedef {{minutes:number|null, estimated:boolean, visits:{start:string,end:string,minutes:number|null,estimated:boolean}[]}} Day */
 
+const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** @param {unknown} v */
+const isInstant = (v) => typeof v === "string" && !Number.isNaN(Date.parse(v));
+
 /**
  * @param {string} iso
  * @param {string} timeZone
@@ -25,12 +30,16 @@ export function dayKey(iso, timeZone) {
 export function aggregateDays(events, timeZone) {
   /** @type {Map<string, Day>} */
   const days = new Map();
+  if (!Array.isArray(events)) throw new TypeError("events must be an array");
   for (const e of events) {
-    const allDay = e.start.date !== undefined;
+    const allDay = e?.start?.date !== undefined;
     const start = /** @type {string} */ (
-      allDay ? e.start.date : e.start.dateTime
+      allDay ? e.start.date : e?.start?.dateTime
     );
-    const end = /** @type {string} */ (allDay ? e.end.date : e.end.dateTime);
+    const end = /** @type {string} */ (allDay ? e.end?.date : e?.end?.dateTime);
+    // Skip malformed events instead of failing the whole card.
+    if (allDay ? !DATE_KEY.test(start) : !isInstant(start) || !isInstant(end))
+      continue;
     const key = allDay ? start : dayKey(start, timeZone);
     const minutes = allDay
       ? null
@@ -94,6 +103,7 @@ export function level(day) {
  * @returns {{date:string, inYear:boolean}[][]} columns = weeks, Monday first
  */
 export function yearGrid(year) {
+  if (!Number.isInteger(year) || year < 1000 || year > 9999) return [];
   const jan1 = `${year}-01-01`;
   const dec31 = `${year}-12-31`;
   const mondayOffset = (new Date(`${jan1}T00:00:00Z`).getUTCDay() + 6) % 7;
@@ -238,6 +248,16 @@ export function shouldFetch(now, lastAttempt, lastFailed) {
   );
 }
 
+/** @param {unknown} entity */
+export const isValidEntity = (entity) =>
+  typeof entity === "string" && /^calendar\.[a-z0-9_]+$/.test(entity);
+
+/**
+ * @param {string} requested entity the response was fetched for
+ * @param {string} current entity the card is configured with now
+ */
+export const isStaleResponse = (requested, current) => requested !== current;
+
 class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
   /** @type {string} */ entity = "";
   /** @type {any} */ model = { state: "loading" };
@@ -248,10 +268,10 @@ class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
 
   /** @param {{entity?:string}} config */
   setConfig(config) {
-    if (!config?.entity?.startsWith("calendar."))
+    if (!isValidEntity(config?.entity))
       throw new Error("entity (calendar.*) erforderlich");
     if (config.entity !== this.entity) this.lastFetch = undefined;
-    this.entity = config.entity;
+    this.entity = /** @type {string} */ (config.entity);
   }
 
   getCardSize() {
@@ -267,13 +287,15 @@ class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
 
   /** @param {any} h */
   async #load(h) {
+    const entity = this.entity;
     try {
       const tz = h.config.time_zone;
       const end = new Date(Date.now() + 86400000).toISOString();
       const events = await h.callApi(
         "GET",
-        `calendars/${this.entity}?start=2000-01-01T00:00:00Z&end=${end}`,
+        `calendars/${entity}?start=2000-01-01T00:00:00Z&end=${end}`,
       );
+      if (isStaleResponse(entity, this.entity)) return;
       const today = dayKey(new Date().toISOString(), tz);
       const days = aggregateDays(events, tz);
       const currentYear = Number(today.slice(0, 4));
@@ -287,16 +309,21 @@ class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
         days,
         timeZone: tz,
       };
+      this.#render();
     } catch {
       this.lastFailed = true;
       this.model = { state: "error", entity: this.entity };
+      this.#render();
     }
-    this.#render();
   }
 
   #render() {
     this.root ??= this.attachShadow({ mode: "open" });
+    // Keep the scroll position across refreshes; first render shows today (right end).
+    const before = this.root.querySelector(".scroll")?.scrollLeft;
     this.root.innerHTML = `<style>${STYLE}</style>${renderCard(this.model)}`;
+    const scroll = this.root.querySelector(".scroll");
+    if (scroll) scroll.scrollLeft = before ?? scroll.scrollWidth;
     for (const b of this.root.querySelectorAll("[data-nav]"))
       b.addEventListener("click", () => {
         this.year = this.model.year + Number(b.getAttribute("data-nav"));
