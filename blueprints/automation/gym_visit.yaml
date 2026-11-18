@@ -1,0 +1,135 @@
+blueprint:
+  name: Gym Trackr - log gym visit
+  description: >-
+    Writes one calendar event per gym visit (zone enter to leave) to a local
+    calendar. Visits shorter than the minimum are discarded, long visits are
+    capped and marked with "⚠ Ende geschätzt". Needs an input_datetime helper
+    with date and time.
+  domain: automation
+  source_url: https://github.com/OWNER/gym-trackr/blob/main/blueprints/automation/gym_visit.yaml
+  input:
+    person:
+      name: Person or device tracker
+      selector:
+        entity:
+          filter:
+            - domain: person
+            - domain: device_tracker
+    zone:
+      name: Gym zone
+      selector:
+        entity:
+          filter:
+            - domain: zone
+    calendar:
+      name: Calendar
+      description: Local calendar that receives the visits.
+      selector:
+        entity:
+          filter:
+            - domain: calendar
+    start_helper:
+      name: Visit start helper
+      description: input_datetime with date and time. 1970-01-01 means no open visit.
+      selector:
+        entity:
+          filter:
+            - domain: input_datetime
+    min_minutes:
+      name: Minimum visit duration (minutes)
+      default: 15
+      selector:
+        number:
+          min: 1
+          max: 120
+          unit_of_measurement: min
+    max_hours:
+      name: Maximum visit duration (hours)
+      default: 4
+      selector:
+        number:
+          min: 1
+          max: 24
+          unit_of_measurement: h
+
+mode: queued
+max: 10
+
+trigger_variables:
+  helper: !input start_helper
+  max_hours: !input max_hours
+
+triggers:
+  - trigger: zone
+    id: enter
+    entity_id: !input person
+    zone: !input zone
+    event: enter
+  - trigger: zone
+    id: leave
+    entity_id: !input person
+    zone: !input zone
+    event: leave
+  - trigger: template
+    id: cap
+    value_template: >-
+      {{ not states(helper).startswith('1970')
+         and now() - (as_datetime(states(helper)) | as_local)
+             >= timedelta(hours=max_hours | float) }}
+  - trigger: homeassistant
+    id: start
+    event: start
+
+actions:
+  # Evaluated when the queued run starts, so racing triggers see the closed helper.
+  - variables:
+      helper: !input start_helper
+      calendar_entity: !input calendar
+      min_minutes: !input min_minutes
+      max_hours: !input max_hours
+      is_open: "{{ not states(helper).startswith('1970') }}"
+      # epoch seconds; native templates would turn datetimes into strings
+      started: "{{ as_timestamp(as_datetime(states(helper)) | as_local) if is_open else 0 }}"
+      cap_end: "{{ started + max_hours | float * 3600 }}"
+      now_ts: "{{ now().timestamp() }}"
+      fmt: "%Y-%m-%d %H:%M:%S"
+  - choose:
+      - conditions: "{{ trigger.id == 'enter' and not is_open }}"
+        sequence:
+          - action: input_datetime.set_datetime
+            target:
+              entity_id: !input start_helper
+            data:
+              datetime: "{{ now().strftime(fmt) }}"
+    default:
+      - choose:
+          # Closed or re-enter while open: nothing to do. Restart while still in the zone: keep the visit.
+          - conditions: "{{ not is_open or trigger.id == 'enter' }}"
+            sequence: []
+          - conditions:
+              - "{{ trigger.id == 'start' }}"
+              - condition: zone
+                entity_id: !input person
+                zone: !input zone
+            sequence: []
+        default:
+          - variables:
+              duration: "{{ now_ts - started }}"
+              capped: "{{ trigger.id in ['cap', 'start'] or duration > max_hours | float * 3600 }}"
+              write: "{{ capped or duration >= min_minutes | float * 60 }}"
+              ends: "{{ [now_ts, cap_end] | min if capped else now_ts }}"
+          - if: "{{ write }}"
+            then:
+              - action: calendar.create_event
+                target:
+                  entity_id: !input calendar
+                data: >-
+                  {{ {'summary': 'Gym',
+                      'start_date_time': started | timestamp_custom(fmt),
+                      'end_date_time': ends | timestamp_custom(fmt)}
+                     | combine({'description': '⚠ Ende geschätzt'} if capped else {}) }}
+          - action: input_datetime.set_datetime
+            target:
+              entity_id: !input start_helper
+            data:
+              datetime: "1970-01-01 00:00:00"

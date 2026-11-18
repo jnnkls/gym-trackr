@@ -6,7 +6,11 @@ requires-python = ">=3.14.2"
 dependencies = []
 
 [dependency-groups]
-dev = ["pytest-homeassistant-custom-component==0.13.375"]
+dev = [
+  "pytest-homeassistant-custom-component==0.13.375",
+  "ical==14.3.0", # runtime requirement of HA local_calendar, used in tests
+  "ruff==0.17.5",
+]
 
 [tool.uv]
 package = false
@@ -14,3 +18,12 @@ package = false
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests_ha"]
+
+[tool.ruff]
+include = ["tests_ha/**/*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "ANN"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests_ha/**" = ["S101"]
