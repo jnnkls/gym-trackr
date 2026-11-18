@@ -4,8 +4,7 @@ cd "$(dirname "$0")/.."
 
 npx biome ci .
 
-# shortcut: tsc errors (TS18003) when no input files exist; drop this guard once gym-trackr.js lands
-if [ -f gym-trackr.js ]; then npx tsc --noEmit; fi
+npx tsc --noEmit
 
 npx knip
 npx vitest run --passWithNoTests
