@@ -73,7 +73,7 @@ triggers:
   - trigger: template
     id: cap
     value_template: >-
-      {{ not states(helper).startswith('1970')
+      {{ states(helper) is match('^[0-9]{4}-[0-9][0-9]-[0-9][0-9]') and not states(helper).startswith('1970')
          and now() - (as_datetime(states(helper)) | as_local)
              >= timedelta(hours=max_hours | float) }}
   - trigger: homeassistant
@@ -87,7 +87,8 @@ actions:
       calendar_entity: !input calendar
       min_minutes: !input min_minutes
       max_hours: !input max_hours
-      is_open: "{{ not states(helper).startswith('1970') }}"
+      # unknown/unavailable/unparsable counts as closed
+      is_open: "{{ states(helper) is match('^[0-9]{4}-[0-9][0-9]-[0-9][0-9]') and not states(helper).startswith('1970') }}"
       # epoch seconds; native templates would turn datetimes into strings
       started: "{{ as_timestamp(as_datetime(states(helper)) | as_local) if is_open else 0 }}"
       cap_end: "{{ started + max_hours | float * 3600 }}"

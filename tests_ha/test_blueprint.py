@@ -56,8 +56,9 @@ async def test_cap_while_inside(gym: Gym) -> None:
 async def test_long_leave_capped(gym: Gym) -> None:
     await gym.at("2026-11-19 18:00:00")
     await gym.at_gym()
-    # One jump past the cap, no tick in between: either trigger may win.
-    await gym.at("2026-11-19 22:00:01")
+    # Clock passes the cap without a time tick, so the cap trigger cannot run
+    # first: this pins the leave-capped branch.
+    await gym.at("2026-11-19 22:00:01", tick=False)
     await gym.away()
     [ev] = await gym.events()
     assert span(ev) == ("2026-11-19 18:00:00", "2026-11-19 22:00:00")
@@ -117,7 +118,8 @@ async def test_restart_after_leave(gym: Gym) -> None:
 
 async def test_restart_after_leave_long(gym: Gym) -> None:
     await gym.at("2026-11-19 19:00:00")
-    await gym.set_helper("2026-11-19 10:00:00")
+    # Disabled while set, so the cap template trigger cannot close it first.
+    await gym.set_helper_while_disabled("2026-11-19 10:00:00")
     await gym.away()
     gym.hass.bus.async_fire(EVENT_HOMEASSISTANT_STARTED)
     await gym.hass.async_block_till_done()
@@ -134,3 +136,15 @@ async def test_restart_still_inside(gym: Gym) -> None:
     await gym.hass.async_block_till_done()
     assert await gym.events() == []
     assert gym.helper() == "2026-11-19 18:00:00"
+
+
+async def test_unknown_helper_counts_as_closed(gym: Gym) -> None:
+    gym.hass.states.async_set("input_datetime.gym_visit_start", "unknown")
+    await gym.at("2026-11-19 18:00:00")
+    await gym.at_gym()
+    assert gym.helper() == "2026-11-19 18:00:00"
+    await gym.at("2026-11-19 19:10:00")
+    await gym.away()
+    [ev] = await gym.events()
+    assert span(ev) == ("2026-11-19 18:00:00", "2026-11-19 19:10:00")
+    assert not ev.get("description")

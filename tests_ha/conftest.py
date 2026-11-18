@@ -32,10 +32,11 @@ class Gym:
         self.hass = hass
         self.freezer = freezer
 
-    async def at(self, when: str) -> None:
-        """Jump the clock to a local 'YYYY-MM-DD HH:MM:SS' and fire time listeners."""
+    async def at(self, when: str, tick: bool = True) -> None:
+        """Jump the clock to local 'YYYY-MM-DD HH:MM:SS'; tick fires time listeners."""
         self.freezer.move_to(local(when))
-        async_fire_time_changed(self.hass)
+        if tick:
+            async_fire_time_changed(self.hass)
         await self.hass.async_block_till_done()
 
     async def _move(self, pos: tuple[float, float]) -> None:
@@ -68,6 +69,18 @@ class Gym:
 
     def helper(self) -> str:
         return self.hass.states.get(HELPER).state  # type: ignore[union-attr]
+
+    async def set_helper_while_disabled(self, value: str) -> None:
+        """Set the helper with the automation off: no trigger sees the change."""
+        auto = {"entity_id": "automation.gym"}
+        await self.hass.services.async_call(
+            "automation", "turn_off", auto, blocking=True
+        )
+        await self.set_helper(value)
+        await self.hass.services.async_call(
+            "automation", "turn_on", auto, blocking=True
+        )
+        await self.hass.async_block_till_done()
 
     async def set_helper(self, value: str) -> None:
         await self.hass.services.async_call(
