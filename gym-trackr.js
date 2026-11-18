@@ -120,3 +120,181 @@ export function firstYear(days, currentYear) {
   const years = [...days.keys()].map((k) => Number(k.slice(0, 4)));
   return years.length ? Math.min(...years) : currentYear;
 }
+
+/** @param {string} s */
+const esc = (s) =>
+  s.replace(
+    /[&<>"']/g,
+    (c) =>
+      /** @type {Record<string,string>} */ ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[c] ?? c,
+  );
+
+/** @param {string} key YYYY-MM-DD */
+const germanDate = (key) => {
+  const [y, m, d] = key.split("-");
+  return `${Number(d)}.${Number(m)}.${y}`;
+};
+
+/**
+ * @param {string} iso
+ * @param {string} timeZone
+ */
+const hhmm = (iso, timeZone) =>
+  new Intl.DateTimeFormat("de-DE", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(iso));
+
+/**
+ * @param {string} key
+ * @param {Day|undefined} d
+ * @param {string} timeZone
+ */
+function tooltip(key, d, timeZone) {
+  const date = germanDate(key);
+  if (!d) return date;
+  const lines = d.visits.map((v) =>
+    v.minutes === null
+      ? `${date}: Dauer unbekannt`
+      : `${date}: ${hhmm(v.start, timeZone)}–${hhmm(v.end, timeZone)} (${v.minutes} min)`,
+  );
+  if (!lines.length) lines.push(date);
+  if (d.estimated) lines.push("Ende geschätzt – bitte prüfen");
+  return lines.join("\n");
+}
+
+/**
+ * @param {{state:"loading"}
+ *  | {state:"error", entity:string}
+ *  | {state:"ok", year:number, firstYear:number, currentYear:number, today:string, days:Map<string,Day>, timeZone?:string}} model
+ * @returns {string}
+ */
+export function renderCard(model) {
+  if (model.state === "loading") return "<ha-card>Lade…</ha-card>";
+  if (model.state === "error")
+    return `<ha-card><div class="msg">Kalender nicht erreichbar: ${esc(model.entity)}</div></ha-card>`;
+  const { year, firstYear, currentYear, today, days } = model;
+  const tz = model.timeZone ?? "UTC";
+  const count = countVisits(days, today);
+  const check = estimatedCount(days);
+  const cols = yearGrid(year)
+    .map(
+      (week) =>
+        `<div class="week">${week
+          .map((c) => {
+            if (!c.inYear) return '<div class="cell out"></div>';
+            const d = days.get(c.date);
+            const cls = `cell l${level(d)}${d?.estimated ? " estimated" : ""}`;
+            return `<div class="${cls}" title="${esc(tooltip(c.date, d, tz))}"></div>`;
+          })
+          .join("")}</div>`,
+    )
+    .join("");
+  return `<ha-card>
+<div class="head"><span class="count">${count} / ${GOAL}</span> <span class="sub">(letzte ${WINDOW_DAYS} Tage)</span> <span class="goal">${esc(goalText(count))}</span>${check > 0 ? ` <span class="check">${check} Einträge prüfen</span>` : ""}</div>
+<div class="nav"><button data-nav="-1"${year === firstYear ? " disabled" : ""}>&lt;</button><span>${year}</span><button data-nav="1"${year === currentYear ? " disabled" : ""}>&gt;</button></div>
+<div class="scroll"><div class="grid">${cols}</div></div>
+</ha-card>`;
+}
+
+const STYLE = `
+:host{display:block}
+ha-card{padding:16px;color:var(--primary-text-color)}
+.sub,.goal{color:var(--secondary-text-color)}
+.check{color:var(--error-color)}
+.nav{display:flex;align-items:center;gap:8px;margin:8px 0}
+.scroll{overflow-x:auto}
+.grid{display:flex;gap:3px;width:max-content}
+.week{display:flex;flex-direction:column;gap:3px}
+.cell{width:12px;height:12px;border-radius:2px;box-sizing:border-box;background:var(--divider-color)}
+.cell.out{visibility:hidden}
+.l1{background:color-mix(in srgb,var(--primary-color) 35%,var(--card-background-color))}
+.l2{background:color-mix(in srgb,var(--primary-color) 65%,var(--card-background-color))}
+.l3{background:var(--primary-color)}
+.cell.estimated{outline:2px solid var(--error-color);outline-offset:-2px}
+`;
+
+const REFRESH_MS = 5 * 60 * 1000;
+
+class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
+  /** @type {string} */ entity = "";
+  /** @type {any} */ model = { state: "loading" };
+  /** @type {number|undefined} */ year;
+  /** @type {number} */ lastFetch = 0;
+  /** @type {any} */ root;
+
+  /** @param {{entity?:string}} config */
+  setConfig(config) {
+    if (!config?.entity?.startsWith("calendar."))
+      throw new Error("entity (calendar.*) erforderlich");
+    this.entity = config.entity;
+  }
+
+  getCardSize() {
+    return 4;
+  }
+
+  /** @param {any} h */
+  set hass(h) {
+    if (Date.now() - this.lastFetch < REFRESH_MS) return;
+    this.lastFetch = Date.now();
+    this.#load(h);
+  }
+
+  /** @param {any} h */
+  async #load(h) {
+    const tz = h.config.time_zone;
+    try {
+      const end = new Date(Date.now() + 86400000).toISOString();
+      const events = await h.callApi(
+        "GET",
+        `calendars/${this.entity}?start=2000-01-01T00:00:00Z&end=${end}`,
+      );
+      const today = dayKey(new Date().toISOString(), tz);
+      const days = aggregateDays(events, tz);
+      const currentYear = Number(today.slice(0, 4));
+      this.model = {
+        state: "ok",
+        year: Math.min(this.year ?? currentYear, currentYear),
+        firstYear: firstYear(days, currentYear),
+        currentYear,
+        today,
+        days,
+        timeZone: tz,
+      };
+    } catch {
+      this.lastFetch = 0; // retry on next hass update
+      this.model = { state: "error", entity: this.entity };
+    }
+    this.#render();
+  }
+
+  #render() {
+    this.root ??= this.attachShadow({ mode: "open" });
+    this.root.innerHTML = `<style>${STYLE}</style>${renderCard(this.model)}`;
+    for (const b of this.root.querySelectorAll("[data-nav]"))
+      b.addEventListener("click", () => {
+        this.year = this.model.year + Number(b.getAttribute("data-nav"));
+        this.model.year = this.year;
+        this.#render();
+      });
+  }
+}
+
+if (globalThis.customElements) {
+  customElements.define("gym-trackr-card", GymTrackrCard);
+  /** @type {any} */ (globalThis.window).customCards ??= [];
+  /** @type {any} */ (globalThis.window).customCards.push({
+    type: "gym-trackr-card",
+    name: "Gym Trackr",
+    description: "Gym-Besuche als Heatmap",
+  });
+}
