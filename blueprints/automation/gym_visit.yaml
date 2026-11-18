@@ -6,7 +6,7 @@ blueprint:
     capped and marked with "⚠ Ende geschätzt". Needs an input_datetime helper
     with date and time.
   domain: automation
-  source_url: https://github.com/OWNER/gym-trackr/blob/main/blueprints/automation/gym_visit.yaml
+  source_url: https://github.com/jnnkls/gym-trackr/blob/main/blueprints/automation/gym_visit.yaml
   input:
     person:
       name: Person or device tracker
