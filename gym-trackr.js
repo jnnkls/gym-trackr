@@ -1,5 +1,6 @@
 // @ts-check
 
+export const VERSION = "0.1.0"; // x-release-please-version
 export const MARKER = "⚠ Ende geschätzt";
 export const GOAL = 20;
 export const WINDOW_DAYS = 90;
@@ -307,6 +308,7 @@ class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
 
 if (globalThis.customElements && !customElements.get("gym-trackr-card")) {
   customElements.define("gym-trackr-card", GymTrackrCard);
+  console.info(`GYM-TRACKR-CARD v${VERSION}`);
   /** @type {any} */ (globalThis.window).customCards ??= [];
   /** @type {any} */ (globalThis.window).customCards.push({
     type: "gym-trackr-card",
