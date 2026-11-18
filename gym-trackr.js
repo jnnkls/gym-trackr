@@ -200,7 +200,7 @@ export function renderCard(model) {
     .join("");
   return `<ha-card>
 <div class="head"><span class="count">${count} / ${GOAL}</span> <span class="sub">(letzte ${WINDOW_DAYS} Tage)</span> <span class="goal">${esc(goalText(count))}</span>${check > 0 ? ` <span class="check">${check} Einträge prüfen</span>` : ""}</div>
-<div class="nav"><button data-nav="-1"${year === firstYear ? " disabled" : ""}>&lt;</button><span>${year}</span><button data-nav="1"${year === currentYear ? " disabled" : ""}>&gt;</button></div>
+<div class="nav"><button data-nav="-1" aria-label="Vorheriges Jahr"${year === firstYear ? " disabled" : ""}>&lt;</button><span>${year}</span><button data-nav="1" aria-label="Nächstes Jahr"${year === currentYear ? " disabled" : ""}>&gt;</button></div>
 <div class="scroll"><div class="grid">${cols}</div></div>
 </ha-card>`;
 }
@@ -223,18 +223,33 @@ ha-card{padding:16px;color:var(--primary-text-color)}
 `;
 
 const REFRESH_MS = 5 * 60 * 1000;
+const RETRY_MS = 30 * 1000;
+
+/**
+ * @param {number} now ms
+ * @param {number|undefined} lastAttempt ms of the last fetch start, undefined if never
+ * @param {boolean} lastFailed whether that attempt failed
+ */
+export function shouldFetch(now, lastAttempt, lastFailed) {
+  return (
+    lastAttempt === undefined ||
+    now - lastAttempt >= (lastFailed ? RETRY_MS : REFRESH_MS)
+  );
+}
 
 class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
   /** @type {string} */ entity = "";
   /** @type {any} */ model = { state: "loading" };
   /** @type {number|undefined} */ year;
-  /** @type {number} */ lastFetch = 0;
+  /** @type {number|undefined} */ lastFetch;
+  lastFailed = false;
   /** @type {any} */ root;
 
   /** @param {{entity?:string}} config */
   setConfig(config) {
     if (!config?.entity?.startsWith("calendar."))
       throw new Error("entity (calendar.*) erforderlich");
+    if (config.entity !== this.entity) this.lastFetch = undefined;
     this.entity = config.entity;
   }
 
@@ -244,15 +259,15 @@ class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
 
   /** @param {any} h */
   set hass(h) {
-    if (Date.now() - this.lastFetch < REFRESH_MS) return;
+    if (!shouldFetch(Date.now(), this.lastFetch, this.lastFailed)) return;
     this.lastFetch = Date.now();
     this.#load(h);
   }
 
   /** @param {any} h */
   async #load(h) {
-    const tz = h.config.time_zone;
     try {
+      const tz = h.config.time_zone;
       const end = new Date(Date.now() + 86400000).toISOString();
       const events = await h.callApi(
         "GET",
@@ -261,6 +276,7 @@ class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
       const today = dayKey(new Date().toISOString(), tz);
       const days = aggregateDays(events, tz);
       const currentYear = Number(today.slice(0, 4));
+      this.lastFailed = false;
       this.model = {
         state: "ok",
         year: Math.min(this.year ?? currentYear, currentYear),
@@ -271,7 +287,7 @@ class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
         timeZone: tz,
       };
     } catch {
-      this.lastFetch = 0; // retry on next hass update
+      this.lastFailed = true;
       this.model = { state: "error", entity: this.entity };
     }
     this.#render();
@@ -289,7 +305,7 @@ class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
   }
 }
 
-if (globalThis.customElements) {
+if (globalThis.customElements && !customElements.get("gym-trackr-card")) {
   customElements.define("gym-trackr-card", GymTrackrCard);
   /** @type {any} */ (globalThis.window).customCards ??= [];
   /** @type {any} */ (globalThis.window).customCards.push({

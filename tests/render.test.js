@@ -1,6 +1,6 @@
 // @ts-check
 import { expect, test } from "vitest";
-import { renderCard } from "../gym-trackr.js";
+import { renderCard, shouldFetch } from "../gym-trackr.js";
 import { day } from "./helpers.js";
 
 test("renders counter and goal", () => {
@@ -111,4 +111,12 @@ test("tooltip shows times in time zone, all-day and empty cells", () => {
   expect(html).toContain('title="10.11.2026: 18:00–19:00 (60 min)"');
   expect(html).toContain('title="11.11.2026: Dauer unbekannt"');
   expect(html).toContain('title="12.11.2026"');
+});
+
+test("shouldFetch: 5 min normally, 30 s backoff after failure", () => {
+  expect(shouldFetch(1000, undefined, false)).toBe(true);
+  expect(shouldFetch(1000 + 299_999, 1000, false)).toBe(false);
+  expect(shouldFetch(1000 + 300_000, 1000, false)).toBe(true);
+  expect(shouldFetch(1000 + 29_999, 1000, true)).toBe(false);
+  expect(shouldFetch(1000 + 30_000, 1000, true)).toBe(true);
 });
