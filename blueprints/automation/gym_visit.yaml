@@ -74,6 +74,7 @@ triggers:
     id: cap
     value_template: >-
       {{ states(helper) is match('^[0-9]{4}-[0-9][0-9]-[0-9][0-9]') and not states(helper).startswith('1970')
+         and as_datetime(states(helper), none) is not none
          and now() - (as_datetime(states(helper)) | as_local)
              >= timedelta(hours=max_hours | float) }}
   - trigger: homeassistant
@@ -84,16 +85,25 @@ actions:
   # Evaluated when the queued run starts, so racing triggers see the closed helper.
   - variables:
       helper: !input start_helper
+      person: !input person
       calendar_entity: !input calendar
       min_minutes: !input min_minutes
       max_hours: !input max_hours
       # unknown/unavailable/unparsable counts as closed
-      is_open: "{{ states(helper) is match('^[0-9]{4}-[0-9][0-9]-[0-9][0-9]') and not states(helper).startswith('1970') }}"
-      # epoch seconds; native templates would turn datetimes into strings
-      started: "{{ as_timestamp(as_datetime(states(helper)) | as_local) if is_open else 0 }}"
-      cap_end: "{{ started + max_hours | float * 3600 }}"
+      is_open: "{{ states(helper) is match('^[0-9]{4}-[0-9][0-9]-[0-9][0-9]') and not states(helper).startswith('1970') and as_datetime(states(helper), none) is not none }}"
       now_ts: "{{ now().timestamp() }}"
-      fmt: "%Y-%m-%d %H:%M:%S"
+      # epoch seconds; native templates would turn datetimes into strings.
+      # The helper is naive local time: in the DST fall-back hour take the later
+      # reading unless it lies in the future.
+      started: >-
+        {% if is_open %}{% set s = as_datetime(states(helper)) | as_local %}
+        {% set later = as_timestamp(s.replace(fold=1)) %}
+        {{ later if later <= now_ts else as_timestamp(s) }}{% else %}0{% endif %}
+      cap_end: "{{ started + max_hours | float * 3600 }}"
+      # open for at least the cap: an enter then closes it first
+      stale: "{{ is_open and now_ts - started >= max_hours | float * 3600 }}"
+      fmt: "%Y-%m-%d %H:%M:%S%z"
+      helper_fmt: "%Y-%m-%d %H:%M:%S"
   - choose:
       - conditions: "{{ trigger.id == 'enter' and not is_open }}"
         sequence:
@@ -101,23 +111,27 @@ actions:
             target:
               entity_id: !input start_helper
             data:
-              datetime: "{{ now().strftime(fmt) }}"
+              datetime: "{{ now().strftime(helper_fmt) }}"
     default:
       - choose:
-          # Closed or re-enter while open: nothing to do. Restart while still in the zone: keep the visit.
-          - conditions: "{{ not is_open or trigger.id == 'enter' }}"
+          # Closed or re-enter while open (and not stale): nothing to do.
+          - conditions: "{{ not is_open or (trigger.id == 'enter' and not stale) }}"
             sequence: []
+          # Restart while still in the zone, or tracker not known yet: keep the visit.
           - conditions:
               - "{{ trigger.id == 'start' }}"
-              - condition: zone
-                entity_id: !input person
-                zone: !input zone
+              - condition: or
+                conditions:
+                  - condition: zone
+                    entity_id: !input person
+                    zone: !input zone
+                  - "{{ states(person) in ['unknown', 'unavailable'] }}"
             sequence: []
         default:
           - variables:
               duration: "{{ now_ts - started }}"
-              capped: "{{ trigger.id in ['cap', 'start'] or duration > max_hours | float * 3600 }}"
-              write: "{{ capped or duration >= min_minutes | float * 60 }}"
+              capped: "{{ trigger.id in ['cap', 'start', 'enter'] or duration > max_hours | float * 3600 }}"
+              write: "{{ trigger.id == 'cap' or duration >= min_minutes | float * 60 or duration > max_hours | float * 3600 }}"
               ends: "{{ [now_ts, cap_end] | min if capped else now_ts }}"
           - if: "{{ write }}"
             then:
@@ -134,3 +148,11 @@ actions:
               entity_id: !input start_helper
             data:
               datetime: "1970-01-01 00:00:00"
+          # Stale visit closed by a new enter: the new visit starts now.
+          - if: "{{ trigger.id == 'enter' }}"
+            then:
+              - action: input_datetime.set_datetime
+                target:
+                  entity_id: !input start_helper
+                data:
+                  datetime: "{{ now().strftime(helper_fmt) }}"
