@@ -1,0 +1,19 @@
+{
+  "name": "gym-trackr",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Home Assistant blueprint and Lovelace card that log gym visits to a calendar and show a heatmap",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "check": "scripts/check.sh",
+    "lint": "biome ci .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.8",
+    "knip": "6.46.1",
+    "typescript": "7.0.2",
+    "vitest": "5.1.1"
+  }
+}

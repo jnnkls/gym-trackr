@@ -1,0 +1,9 @@
+pre-commit:
+  commands:
+    check:
+      run: scripts/check.sh
+
+commit-msg:
+  commands:
+    conventional:
+      run: "grep -qE '^(feat|fix|chore|ci|build|docs|refactor|test|perf)(\\([a-z0-9._-]+\\))?!?: .+' {1}"

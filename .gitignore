@@ -1,2 +1,10 @@
 docs/superpowers/
 .superpowers/
+node_modules/
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.tsbuildinfo
+coverage/
+.DS_Store
