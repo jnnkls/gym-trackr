@@ -11,7 +11,7 @@ A Home Assistant blueprint plus a Lovelace card. The blueprint writes one calend
 
 1. **Zone.** Create a zone named `Gym` (Settings > Areas, labels & zones > Zones) around your gym.
 2. **Calendar.** Add the Local Calendar integration and create a calendar named `Gym` (entity `calendar.gym`).
-3. **Helper.** Create a helper of type Date and/or time named `gym_visit_start` (`input_datetime.gym_visit_start`) with **both date and time** enabled. It stores the start of the open visit; `1970-01-01` means no open visit.
+3. **Helper.** Create a helper of type Date and/or time named `gym_visit_start` (`input_datetime.gym_visit_start`) with **both date and time** enabled. It stores the start of the open visit; `1970-01-01` means no open visit. Use one helper per automation (per person); sharing a helper makes visits overwrite each other.
 4. **Blueprint.** Import it:
 
    [![Open your Home Assistant instance and import the blueprint.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Fjnnkls%2Fgym-trackr%2Fmain%2Fblueprints%2Fautomation%2Fgym_visit.yaml)
