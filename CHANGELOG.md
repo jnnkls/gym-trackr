@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/jnnkls/gym-trackr/compare/v0.4.1...v0.5.0) (2026-11-19)
+
+
+### Features
+
+* **card:** fill the card width in the 90-day view and dim older days ([#12](https://github.com/jnnkls/gym-trackr/issues/12)) ([b044c7a](https://github.com/jnnkls/gym-trackr/commit/b044c7ae1d904930f7f3c29f9a42faf361ccbeb8))
+
 ## [0.4.1](https://github.com/jnnkls/gym-trackr/compare/v0.4.0...v0.4.1) (2026-11-19)
 
 
