@@ -349,11 +349,9 @@ dialog{background:var(--card-background-color);color:var(--primary-text-color);b
 .grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(8,auto);grid-template-columns:auto;grid-auto-columns:12px;gap:3px;width:max-content}
 .week{display:contents}
 .cell{width:12px;height:12px;border-radius:2px;box-sizing:border-box;background:var(--divider-color);border:none}
-.grid.window{grid-auto-columns:1fr;width:100%}
-.window .cell{aspect-ratio:1;width:auto;height:auto}
 .m,.wd,.legend{font-size:10px;line-height:12px;color:var(--secondary-text-color)}
 .m{width:0;white-space:nowrap;height:12px}
-.wd{align-self:center;padding-right:4px;position:sticky;left:0;background:var(--card-background-color)}
+.wd{align-self:center;padding-right:4px}
 .legend{display:flex;justify-content:flex-end;align-items:center;gap:3px;margin-top:8px}
 .legend span{margin:0 4px}
 .sw{width:12px;height:12px;border-radius:2px;background:var(--divider-color)}
