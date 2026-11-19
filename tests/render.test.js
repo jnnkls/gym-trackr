@@ -1,6 +1,6 @@
 // @ts-check
 import { expect, test } from "vitest";
-import { renderCard, STYLE, shouldFetch } from "../gym-trackr.js";
+import { renderCard, renderDialog, STYLE, shouldFetch } from "../gym-trackr.js";
 import { day } from "./helpers.js";
 
 test("renders counter and goal", () => {
@@ -144,4 +144,69 @@ test("shouldFetch: 5 min normally, 30 s backoff after failure", () => {
   expect(shouldFetch(1000 + 300_000, 1000, false)).toBe(true);
   expect(shouldFetch(1000 + 29_999, 1000, true)).toBe(false);
   expect(shouldFetch(1000 + 30_000, 1000, true)).toBe(true);
+});
+
+/** @param {Record<string, any>} o */
+const visit = (o) => ({
+  start: "2026-11-19T17:00:00Z",
+  end: "2026-11-19T18:30:00Z",
+  minutes: 90,
+  estimated: false,
+  ...o,
+});
+
+test("renderDialog timed estimated visit", () => {
+  const html = renderDialog(
+    "2026-11-19",
+    { ...day(), visits: [visit({ uid: "abc", estimated: true })] },
+    undefined,
+    "Europe/Berlin",
+  );
+  expect(html).toContain('data-uid="abc"');
+  for (const s of [
+    "Ende geschätzt",
+    "Speichern",
+    "Löschen",
+    'value="18:00"',
+    'value="19:30"',
+    "Do., 19.11.2026",
+  ])
+    expect(html).toContain(s);
+});
+
+test("renderDialog all-day visit has no time inputs for it", () => {
+  const html = renderDialog("2026-11-19", {
+    ...day(),
+    visits: [visit({ uid: "x", minutes: null })],
+  });
+  expect(html).toContain("ganztägig");
+  expect(html.split('<div class="visit add">')[0]).not.toContain('type="time"');
+});
+
+test("renderDialog empty day offers adding", () => {
+  expect(renderDialog("2026-11-19", undefined)).toContain("Hinzufügen");
+});
+
+test("renderDialog escapes uid and error", () => {
+  const html = renderDialog(
+    "2026-11-19",
+    { ...day(), visits: [visit({ uid: '"><img src=x>' })] },
+    "<u>",
+  );
+  expect(html).not.toContain("<img");
+  expect(html).not.toContain("<u>");
+});
+
+test("renderCard: in-range cells are buttons, out cells are not", () => {
+  const html = renderCard({
+    state: "ok",
+    view: 2026,
+    firstYear: 2026,
+    currentYear: 2026,
+    today: "2026-11-19",
+    days: new Map(),
+  });
+  expect(html).toMatch(/<button class="cell l0" data-day="2026-01-01"/);
+  expect(html).toContain('<div class="cell out"></div>');
+  expect(html).not.toMatch(/<button class="cell out/);
 });

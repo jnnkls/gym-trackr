@@ -3,6 +3,7 @@ import { expect, test } from "vitest";
 import {
   aggregateDays,
   countVisits,
+  dayTitle,
   estimatedCount,
   firstYear,
   goalText,
@@ -11,6 +12,7 @@ import {
   level,
   navigate,
   renderCard,
+  visitTimes,
   weekGrid,
 } from "../gym-trackr.js";
 import { day, ev } from "./helpers.js";
@@ -210,4 +212,35 @@ test("entity must be calendar.<id> without path or query characters", () => {
 test("response for another entity is stale", () => {
   expect(isStaleResponse("calendar.a", "calendar.b")).toBe(true);
   expect(isStaleResponse("calendar.a", "calendar.a")).toBe(false);
+});
+
+test("visitTimes builds naive local ISO and rolls past midnight", () => {
+  expect(visitTimes("2026-11-19", "18:00", "19:30")).toEqual({
+    start: "2026-11-19T18:00:00",
+    end: "2026-11-19T19:30:00",
+  });
+  expect(visitTimes("2026-11-19", "23:30", "00:45")?.end).toBe(
+    "2026-11-20T00:45:00",
+  );
+  expect(visitTimes("2026-11-19", "18:00", "18:00")).toBeNull();
+  expect(visitTimes("2026-11-19", "", "18:00")).toBeNull();
+});
+
+test("dayTitle is German weekday + date", () => {
+  expect(dayTitle("2026-11-19")).toBe("Do., 19.11.2026");
+});
+
+test("aggregateDays keeps uid on visits", () => {
+  const e = {
+    ...ev("2026-11-19T17:00:00Z", "2026-11-19T18:00:00Z"),
+    uid: "u1",
+  };
+  const d = aggregateDays(
+    [e, ev("2026-11-19T19:00:00Z", "2026-11-19T20:00:00Z")],
+    "UTC",
+  );
+  expect(d.get("2026-11-19")?.visits.map((v) => v.uid)).toEqual([
+    "u1",
+    undefined,
+  ]);
 });

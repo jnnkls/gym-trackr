@@ -38,6 +38,10 @@ A Home Assistant blueprint plus a Lovelace card. The blueprint writes one calend
 
 Add events titled `Gym` to the Home Assistant calendar by hand. All-day events are allowed; they count as a visit with unknown duration.
 
+## Editing visits
+
+Click a day in the card to open a dialog: change start/end of a visit, delete it, or add a visit (default 18:00-19:00). Times are in your Home Assistant time zone; an end at or before the start means the next day. Saving clears the estimated-end marker. This needs a calendar that supports creating, updating and deleting events (e.g. Local Calendar).
+
 ## Estimated end marker
 
 If a visit is capped (or Home Assistant restarted while you were away) the end is a guess and the event description is set to `⚠ Ende geschätzt`. To clear it, open the event in the calendar, correct the end time and delete the description.
