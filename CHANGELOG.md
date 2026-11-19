@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/jnnkls/gym-trackr/compare/v0.4.0...v0.4.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **card:** compact 90-day view and plain weekday labels ([#10](https://github.com/jnnkls/gym-trackr/issues/10)) ([0b1b480](https://github.com/jnnkls/gym-trackr/commit/0b1b4807a47d57a5f6ade3d97bbd57bf62d89e58))
+
 ## [0.4.0](https://github.com/jnnkls/gym-trackr/compare/v0.3.0...v0.4.0) (2026-11-19)
 
 
