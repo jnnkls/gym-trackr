@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/jnnkls/gym-trackr/compare/v0.2.0...v0.3.0) (2026-11-19)
+
+
+### Features
+
+* **card:** edit visits from a day dialog and mushroom-style buttons ([#5](https://github.com/jnnkls/gym-trackr/issues/5)) ([e222947](https://github.com/jnnkls/gym-trackr/commit/e22294724dc6b2df8c44778a0c3b6a044ee9d6c6))
+
+
+### Bug Fixes
+
+* **blueprint:** treat input_datetime's midnight default as no open visit ([#4](https://github.com/jnnkls/gym-trackr/issues/4)) ([9893a45](https://github.com/jnnkls/gym-trackr/commit/9893a4563e94ad4c1e4919efefa6a63701507660))
+
 ## [0.2.0](https://github.com/jnnkls/gym-trackr/compare/v0.1.0...v0.2.0) (2026-11-19)
 
 
