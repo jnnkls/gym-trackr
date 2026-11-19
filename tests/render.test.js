@@ -237,3 +237,10 @@ test("window view has month labels and 90 cells despite legend swatches", () => 
   expect(html).toContain('<div class="m">Okt</div>');
   expect(html.match(/class="cell l/g)?.length).toBe(90);
 });
+
+test("90-day view uses the same compact 12px cells and plain weekday labels", () => {
+  // regression: window view stretched cells to card width; sticky .wd had an opaque background box
+  expect(STYLE).not.toMatch(/\.window/);
+  const wd = STYLE.match(/\.wd\{[^}]*\}/)?.[0] ?? "";
+  expect(wd).not.toMatch(/background|sticky/);
+});
