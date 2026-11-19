@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/jnnkls/gym-trackr/compare/v0.3.0...v0.4.0) (2026-11-19)
+
+
+### Features
+
+* **card:** github-style month/weekday labels, legend and date tooltip ([#9](https://github.com/jnnkls/gym-trackr/issues/9)) ([61993e8](https://github.com/jnnkls/gym-trackr/commit/61993e825932defb39941d3c03881d2740dde156))
+
+
+### Bug Fixes
+
+* **card:** keep year-view cells at 12px ([#7](https://github.com/jnnkls/gym-trackr/issues/7)) ([8e7fd67](https://github.com/jnnkls/gym-trackr/commit/8e7fd6715d2728460e60c15c23eb5aad61e39c31))
+
 ## [0.3.0](https://github.com/jnnkls/gym-trackr/compare/v0.2.0...v0.3.0) (2026-11-19)
 
 
