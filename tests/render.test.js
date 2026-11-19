@@ -1,6 +1,13 @@
 // @ts-check
 import { expect, test } from "vitest";
-import { renderCard, renderDialog, STYLE, shouldFetch } from "../gym-trackr.js";
+import {
+  fitWeeks,
+  LABEL_COL_PX,
+  renderCard,
+  renderDialog,
+  STYLE,
+  shouldFetch,
+} from "../gym-trackr.js";
 import { day } from "./helpers.js";
 
 test("renders counter and goal", () => {
@@ -243,4 +250,35 @@ test("90-day view uses the same compact 12px cells and plain weekday labels", ()
   expect(STYLE).not.toMatch(/\.window/);
   const wd = STYLE.match(/\.wd\{[^}]*\}/)?.[0] ?? "";
   expect(wd).not.toMatch(/background|sticky/);
+});
+
+test("fitWeeks: whole weeks after the label column, clamped to 0..53", () => {
+  expect(fitWeeks(LABEL_COL_PX + 15 * 26)).toBe(26);
+  expect(fitWeeks(LABEL_COL_PX + 15 * 26 - 1)).toBe(25);
+  expect(fitWeeks(5)).toBe(0);
+  expect(fitWeeks(100000)).toBe(53);
+});
+
+test("window view with weeks fills the width and dims days before the 90-day window", () => {
+  const html = renderCard({ ...base, view: "window", weeks: 26 });
+  const buttons = [
+    ...html.matchAll(/<button class="(cell [^"]*)" data-day="([^"]+)"/g),
+  ];
+  const normal = buttons.filter((b) => !b[1].includes("dim"));
+  const dim = buttons.filter((b) => b[1].includes("dim"));
+  expect(normal).toHaveLength(90);
+  expect(dim.length).toBeGreaterThan(0);
+  expect(dim.every((b) => b[2] < "2026-08-22")).toBe(true);
+  expect(buttons.every((b) => b[2] <= base.today)).toBe(true);
+  expect(html).toContain(">Jun<");
+  expect(STYLE).toMatch(/\.cell\.dim\{opacity:\.35\}/);
+});
+
+test("window view with fewer weeks than the 90 days need is unchanged", () => {
+  const cells = (/** @type {string} */ h) =>
+    h.match(/<(?:button|div) class="cell[^"]*"[^>]*>/g);
+  const plain = renderCard({ ...base, view: "window" });
+  const small = renderCard({ ...base, view: "window", weeks: 5 });
+  expect(cells(small)).toEqual(cells(plain));
+  expect(small).not.toContain("dim");
 });
