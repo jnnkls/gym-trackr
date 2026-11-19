@@ -1,6 +1,6 @@
 // @ts-check
 
-export const VERSION = "0.1.0"; // x-release-please-version
+export const VERSION = "0.2.0"; // x-release-please-version
 export const MARKER = "⚠ Ende geschätzt";
 export const GOAL = 20;
 export const WINDOW_DAYS = 90;
