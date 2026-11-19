@@ -4,6 +4,9 @@ export const VERSION = "0.4.1"; // x-release-please-version
 export const MARKER = "⚠ Ende geschätzt";
 export const GOAL = 20;
 export const WINDOW_DAYS = 90;
+export const LABEL_COL_PX = 24; // weekday label column (21px) + gap, matches .grid in STYLE
+const CELL_PX = 15; // 12px cell + 3px gap
+const CARD_PAD_PX = 32; // ha-card padding, 16px per side
 
 /** @typedef {{start:{dateTime?:string,date?:string}, end:{dateTime?:string,date?:string}, summary?:string, description?:string|null, uid?:string}} CalEvent */
 /** @typedef {{minutes:number|null, estimated:boolean, visits:{uid?:string,start:string,end:string,minutes:number|null,estimated:boolean}[]}} Day */
@@ -126,6 +129,14 @@ export function weekGrid(from, to) {
     );
   }
   return cols;
+}
+
+/** @param {number} widthPx content width of the card */
+export function fitWeeks(widthPx) {
+  return Math.min(
+    53,
+    Math.max(0, Math.floor((widthPx - LABEL_COL_PX) / CELL_PX)),
+  );
 }
 
 /**
@@ -286,7 +297,7 @@ ${error ? `<p class="err">${esc(error)}</p>` : ""}`;
 /**
  * @param {{state:"loading"}
  *  | {state:"error", entity:string}
- *  | {state:"ok", view:"window"|number, firstYear:number, currentYear:number, today:string, days:Map<string,Day>, timeZone?:string}} model
+ *  | {state:"ok", view:"window"|number, firstYear:number, currentYear:number, today:string, days:Map<string,Day>, timeZone?:string, weeks?:number}} model
  * @returns {string}
  */
 export function renderCard(model) {
@@ -298,9 +309,16 @@ export function renderCard(model) {
   const count = countVisits(days, today);
   const check = estimatedCount(days);
   const win = view === "window";
-  const grid = win
-    ? weekGrid(addDays(today, -(WINDOW_DAYS - 1)), today)
-    : weekGrid(`${view}-01-01`, `${view}-12-31`);
+  const winFrom = addDays(today, -(WINDOW_DAYS - 1));
+  let grid = win ? weekGrid(winFrom, today) : [];
+  if (win && model.weeks && model.weeks > grid.length) {
+    const monday = addDays(
+      today,
+      -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7),
+    );
+    grid = weekGrid(addDays(monday, -(model.weeks - 1) * 7), today);
+  }
+  if (!win) grid = weekGrid(`${view}-01-01`, `${view}-12-31`);
   const months = new Map(monthLabels(grid).map((l) => [l.col, l.label]));
   const wd = ["Mo", "", "Mi", "", "Fr", "", ""];
   const cols = `<div class="week"><div class="m"></div>${wd.map((w) => `<div class="wd">${w}</div>`).join("")}</div>${grid
@@ -310,7 +328,7 @@ export function renderCard(model) {
           .map((c) => {
             if (!c.inRange) return '<div class="cell out"></div>';
             const d = days.get(c.date);
-            const cls = `cell l${level(d)}${d?.estimated ? " estimated" : ""}`;
+            const cls = `cell l${level(d)}${win && c.date < winFrom ? " dim" : ""}${d?.estimated ? " estimated" : ""}`;
             const label = esc(tipText(c.date, d, tz).join(", "));
             return `<button class="${cls}" data-day="${c.date}" aria-label="${label}"></button>`;
           })
@@ -346,7 +364,7 @@ dialog{background:var(--card-background-color);color:var(--primary-text-color);b
 .visit input{font:inherit;color:inherit;background:transparent;border:1px solid var(--divider-color);border-radius:6px;padding:4px}
 .err{color:var(--error-color)}
 .scroll{overflow-x:auto}
-.grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(8,auto);grid-template-columns:auto;grid-auto-columns:12px;gap:3px;width:max-content}
+.grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(8,auto);grid-template-columns:21px;grid-auto-columns:12px;gap:3px;width:max-content}
 .week{display:contents}
 .cell{width:12px;height:12px;border-radius:2px;box-sizing:border-box;background:var(--divider-color);border:none}
 .m,.wd,.legend{font-size:10px;line-height:12px;color:var(--secondary-text-color)}
@@ -360,6 +378,7 @@ ha-card{position:relative}
 .tip[hidden]{display:none}
 .tip div:first-child{font-weight:500}
 .cell.out{visibility:hidden}
+.cell.dim{opacity:.35}
 .l1{background:color-mix(in srgb,var(--gt-green) 35%,var(--card-background-color))}
 .l2{background:color-mix(in srgb,var(--gt-green) 65%,var(--card-background-color))}
 .l3{background:var(--gt-green)}
@@ -401,6 +420,26 @@ class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
   /** @type {any} */ hassObj;
   /** @type {string|undefined} */ openDay;
   /** @type {string|undefined} */ dialogError;
+  /** @type {any} */ resizeObs;
+  /** @type {number|undefined} */ weeks;
+
+  connectedCallback() {
+    if (!globalThis.ResizeObserver) return;
+    this.resizeObs = new ResizeObserver((entries) => {
+      const w = fitWeeks(entries[0].contentRect.width - CARD_PAD_PX);
+      if (w === this.weeks) return;
+      this.weeks = w;
+      if (this.model.state === "ok") {
+        this.model.weeks = w;
+        this.#render(); // re-renders only #card, an open dialog stays untouched
+      }
+    });
+    this.resizeObs.observe(this);
+  }
+
+  disconnectedCallback() {
+    this.resizeObs?.disconnect();
+  }
 
   /** @param {{entity?:string}} config */
   setConfig(config) {
@@ -448,6 +487,7 @@ class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
         today,
         days,
         timeZone: tz,
+        weeks: this.weeks,
       };
       this.#render(); // dialog body is only redrawn by its own actions, so typing survives refreshes
       return true;
