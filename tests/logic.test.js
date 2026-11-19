@@ -9,8 +9,9 @@ import {
   isStaleResponse,
   isValidEntity,
   level,
+  navigate,
   renderCard,
-  yearGrid,
+  weekGrid,
 } from "../gym-trackr.js";
 import { day, ev } from "./helpers.js";
 
@@ -114,11 +115,29 @@ test("levels", () => {
   ).toEqual([0, 1, 1, 2, 2, 3, 3]);
 });
 test("year grid 2026", () => {
-  const g = yearGrid(2026);
-  expect(g[0][0]).toEqual({ date: "2025-12-29", inYear: false });
-  expect(g.flat().filter((c) => c.inYear)).toHaveLength(365);
+  const g = weekGrid("2026-01-01", "2026-12-31");
+  expect(g[0][0]).toEqual({ date: "2025-12-29", inRange: false });
+  expect(g.flat().filter((c) => c.inRange)).toHaveLength(365);
   expect(g.every((col) => col.length === 7)).toBe(true);
   expect(g.at(-1)?.some((c) => c.date === "2026-12-31")).toBe(true);
+});
+test("week grid 90-day window", () => {
+  const g = weekGrid("2026-08-22", "2026-11-19");
+  expect(g.flat().filter((c) => c.inRange)).toHaveLength(90);
+  expect(g[0][0].date).toBe("2026-08-17");
+  expect(g.at(-1)?.some((c) => c.date === "2026-11-19")).toBe(true);
+});
+test("week grid rejects garbage", () => {
+  expect(weekGrid("x", "2026-01-01")).toEqual([]);
+  expect(weekGrid("2026-02-01", "2026-01-01")).toEqual([]);
+});
+test("navigate between window and years", () => {
+  expect(navigate("window", -1, 2025, 2026)).toBe(2026);
+  expect(navigate("window", 1, 2025, 2026)).toBe("window");
+  expect(navigate(2026, 1, 2025, 2026)).toBe("window");
+  expect(navigate(2025, 1, 2025, 2026)).toBe(2026);
+  expect(navigate(2026, -1, 2025, 2026)).toBe(2025);
+  expect(navigate(2025, -1, 2025, 2026)).toBe(2025);
 });
 test("empty", () => {
   const d = aggregateDays([], TZ);
@@ -165,7 +184,7 @@ test("renderCard survives garbage years", () => {
     expect(() =>
       renderCard({
         state: "ok",
-        year,
+        view: year,
         firstYear: 2026,
         currentYear: 2026,
         today: "2026-11-19",

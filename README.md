@@ -1,6 +1,6 @@
 # Gym Trackr
 
-A Home Assistant blueprint plus a Lovelace card. The blueprint writes one calendar event per gym visit (zone enter to leave) to a local calendar; the card shows a visit counter and a 90-day heatmap. It does not track workouts or training.
+A Home Assistant blueprint plus a Lovelace card. The blueprint writes one calendar event per gym visit (zone enter to leave) to a local calendar; the card shows a visit counter and a 90-day heatmap. It does not track workouts or training. The card opens on the last 90 days; the `‹`, `›` and toggle buttons switch to the per-year view.
 
 ## Prerequisites
 
