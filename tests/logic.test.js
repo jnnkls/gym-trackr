@@ -10,8 +10,10 @@ import {
   isStaleResponse,
   isValidEntity,
   level,
+  monthLabels,
   navigate,
   renderCard,
+  tipText,
   visitTimes,
   weekGrid,
 } from "../gym-trackr.js";
@@ -243,4 +245,68 @@ test("aggregateDays keeps uid on visits", () => {
     "u1",
     undefined,
   ]);
+});
+
+test("monthLabels: full year has 12 labels", () => {
+  const l = monthLabels(weekGrid("2026-01-01", "2026-12-31"));
+  expect(l).toHaveLength(12);
+  expect(l[0]).toEqual({ col: 0, label: "Jan" });
+  expect(l.map((x) => x.label)).toContain("Dez");
+});
+
+test("monthLabels: window keeps labels at month starts", () => {
+  // col0 = Mon Aug 17 (first in range Aug 22), Sep 7 = col3, Oct 5 = col7, Nov 2 = col11; gaps 3,4,4 all >= 2
+  expect(monthLabels(weekGrid("2026-08-22", "2026-11-19"))).toEqual([
+    { col: 0, label: "Aug" },
+    { col: 3, label: "Sep" },
+    { col: 7, label: "Okt" },
+    { col: 11, label: "Nov" },
+  ]);
+});
+
+test("monthLabels: drops a label followed by another one column later", () => {
+  // col0 starts Mon Jan 26 (Jan), col1 starts Mon Feb 2 (Feb): Jan would overlap Feb and is dropped
+  expect(monthLabels(weekGrid("2026-01-26", "2026-03-01"))).toEqual([
+    { col: 1, label: "Feb" },
+  ]);
+  expect(monthLabels([])).toEqual([]);
+});
+
+test("tipText: empty, timed, estimated and all-day", () => {
+  expect(tipText("2026-11-19", undefined, "Europe/Berlin")).toEqual([
+    "Do., 19.11.2026",
+    "Kein Besuch",
+  ]);
+  const timed = {
+    minutes: 70,
+    estimated: true,
+    visits: [
+      {
+        start: "2026-11-19T17:00:00Z",
+        end: "2026-11-19T18:10:00Z",
+        minutes: 70,
+        estimated: true,
+      },
+    ],
+  };
+  expect(tipText("2026-11-19", timed, "Europe/Berlin")).toEqual([
+    "Do., 19.11.2026",
+    "18:00–19:10 (70 min)",
+    "Ende geschätzt – bitte prüfen",
+  ]);
+  const allDay = {
+    minutes: null,
+    estimated: false,
+    visits: [
+      {
+        start: "2026-11-19",
+        end: "2026-11-20",
+        minutes: null,
+        estimated: false,
+      },
+    ],
+  };
+  expect(tipText("2026-11-19", allDay, "UTC")).toContain(
+    "ganztägig (Dauer unbekannt)",
+  );
 });

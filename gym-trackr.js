@@ -164,12 +164,6 @@ const esc = (s) =>
       })[c] ?? c,
   );
 
-/** @param {string} key YYYY-MM-DD */
-const germanDate = (key) => {
-  const [y, m, d] = key.split("-");
-  return `${Number(d)}.${Number(m)}.${y}`;
-};
-
 /**
  * @param {string} iso
  * @param {string} timeZone
@@ -181,24 +175,6 @@ const hhmm = (iso, timeZone) =>
     minute: "2-digit",
     hourCycle: "h23",
   }).format(new Date(iso));
-
-/**
- * @param {string} key
- * @param {Day|undefined} d
- * @param {string} timeZone
- */
-function tooltip(key, d, timeZone) {
-  const date = germanDate(key);
-  if (!d) return date;
-  const lines = d.visits.map((v) =>
-    v.minutes === null
-      ? `${date}: Dauer unbekannt`
-      : `${date}: ${hhmm(v.start, timeZone)}–${hhmm(v.end, timeZone)} (${v.minutes} min)`,
-  );
-  if (!lines.length) lines.push(date);
-  if (d.estimated) lines.push("Ende geschätzt – bitte prüfen");
-  return lines.join("\n");
-}
 
 /**
  * @param {string} dayKey YYYY-MM-DD
@@ -225,6 +201,60 @@ export const dayTitle = (key) =>
     month: "2-digit",
     year: "numeric",
   }).format(new Date(`${key}T00:00:00Z`));
+
+/**
+ * @param {string} date YYYY-MM-DD
+ * @param {Day|undefined} day
+ * @param {string} timeZone
+ * @returns {string[]} tooltip lines
+ */
+export function tipText(date, day, timeZone) {
+  const lines = [dayTitle(date)];
+  if (!day?.visits.length) return [...lines, "Kein Besuch"];
+  for (const v of day.visits)
+    lines.push(
+      v.minutes === null
+        ? "ganztägig (Dauer unbekannt)"
+        : `${hhmm(v.start, timeZone)}–${hhmm(v.end, timeZone)} (${v.minutes} min)`,
+    );
+  if (day.estimated) lines.push("Ende geschätzt – bitte prüfen");
+  return lines;
+}
+
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mär",
+  "Apr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Okt",
+  "Nov",
+  "Dez",
+];
+
+/**
+ * @param {{date:string, inRange:boolean}[][]} grid columns = weeks
+ * @returns {{col:number,label:string}[]} month label per month start column; labels closer than 2 columns to the next one are dropped
+ */
+export function monthLabels(grid) {
+  /** @type {{col:number,label:string}[]} */
+  const labels = [];
+  let prev = "";
+  grid.forEach((week, col) => {
+    const first = week.find((c) => c.inRange);
+    const month = first?.date.slice(5, 7);
+    if (!month || month === prev) return;
+    prev = month;
+    labels.push({ col, label: MONTHS[Number(month) - 1] });
+  });
+  return labels.filter(
+    (l, i) => i === labels.length - 1 || labels[i + 1].col - l.col >= 2,
+  );
+}
 
 /**
  * @param {string} key YYYY-MM-DD
@@ -268,29 +298,32 @@ export function renderCard(model) {
   const count = countVisits(days, today);
   const check = estimatedCount(days);
   const win = view === "window";
-  const cols = (
-    win
-      ? weekGrid(addDays(today, -(WINDOW_DAYS - 1)), today)
-      : weekGrid(`${view}-01-01`, `${view}-12-31`)
-  )
+  const grid = win
+    ? weekGrid(addDays(today, -(WINDOW_DAYS - 1)), today)
+    : weekGrid(`${view}-01-01`, `${view}-12-31`);
+  const months = new Map(monthLabels(grid).map((l) => [l.col, l.label]));
+  const wd = ["Mo", "", "Mi", "", "Fr", "", ""];
+  const cols = `<div class="week"><div class="m"></div>${wd.map((w) => `<div class="wd">${w}</div>`).join("")}</div>${grid
     .map(
-      (week) =>
-        `<div class="week">${week
+      (week, i) =>
+        `<div class="week"><div class="m">${months.get(i) ?? ""}</div>${week
           .map((c) => {
             if (!c.inRange) return '<div class="cell out"></div>';
             const d = days.get(c.date);
             const cls = `cell l${level(d)}${d?.estimated ? " estimated" : ""}`;
-            const tip = esc(tooltip(c.date, d, tz));
-            return `<button class="${cls}" data-day="${c.date}" title="${tip}" aria-label="${tip}"></button>`;
+            const label = esc(tipText(c.date, d, tz).join(", "));
+            return `<button class="${cls}" data-day="${c.date}" aria-label="${label}"></button>`;
           })
           .join("")}</div>`,
     )
-    .join("");
+    .join("")}`;
   const prevOff = win ? false : view <= firstYear;
   return `<ha-card>
 <div class="head"><span class="count">${count} / ${GOAL}</span> <span class="sub">(letzte ${WINDOW_DAYS} Tage)</span> <span class="goal">${esc(goalText(count))}</span>${check > 0 ? ` <span class="check">${check} Einträge prüfen</span>` : ""}</div>
 <div class="nav"><button data-nav="-1" aria-label="Zurück"${prevOff ? " disabled" : ""}><ha-icon icon="mdi:chevron-left"></ha-icon></button><button data-view aria-label="Ansicht wechseln">${win ? "Jahr" : "90 Tage"}</button><button data-nav="1" aria-label="Weiter"${win ? " disabled" : ""}><ha-icon icon="mdi:chevron-right"></ha-icon></button><span>${win ? "Letzte 90 Tage" : view}</span></div>
 <div class="${win ? "" : "scroll"}"><div class="grid${win ? " window" : ""}">${cols}</div></div>
+<div class="legend"><span>Weniger</span><i class="sw l0"></i><i class="sw l1"></i><i class="sw l2"></i><i class="sw l3"></i><span>Mehr</span></div>
+<div class="tip" hidden></div>
 </ha-card>`;
 }
 
@@ -313,12 +346,21 @@ dialog{background:var(--card-background-color);color:var(--primary-text-color);b
 .visit input{font:inherit;color:inherit;background:transparent;border:1px solid var(--divider-color);border-radius:6px;padding:4px}
 .err{color:var(--error-color)}
 .scroll{overflow-x:auto}
-.grid{display:flex;gap:3px;width:max-content}
-.week{display:flex;flex-direction:column;gap:3px}
+.grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(8,auto);grid-template-columns:auto;grid-auto-columns:12px;gap:3px;width:max-content}
+.week{display:contents}
 .cell{width:12px;height:12px;border-radius:2px;box-sizing:border-box;background:var(--divider-color);border:none}
-.grid.window{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,auto);grid-auto-columns:1fr;gap:3px;width:100%}
-.window .week{display:contents}
+.grid.window{grid-auto-columns:1fr;width:100%}
 .window .cell{aspect-ratio:1;width:auto;height:auto}
+.m,.wd,.legend{font-size:10px;line-height:12px;color:var(--secondary-text-color)}
+.m{width:0;white-space:nowrap;height:12px}
+.wd{align-self:center;padding-right:4px;position:sticky;left:0;background:var(--card-background-color)}
+.legend{display:flex;justify-content:flex-end;align-items:center;gap:3px;margin-top:8px}
+.legend span{margin:0 4px}
+.sw{width:12px;height:12px;border-radius:2px;background:var(--divider-color)}
+ha-card{position:relative}
+.tip{position:absolute;z-index:1;pointer-events:none;padding:4px 8px;border-radius:6px;font-size:12px;white-space:nowrap;background:var(--primary-text-color);color:var(--card-background-color)}
+.tip[hidden]{display:none}
+.tip div:first-child{font-weight:500}
 .cell.out{visibility:hidden}
 .l1{background:color-mix(in srgb,var(--gt-green) 35%,var(--card-background-color))}
 .l2{background:color-mix(in srgb,var(--gt-green) 65%,var(--card-background-color))}
@@ -510,12 +552,34 @@ class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
           ),
         ),
       );
-    for (const b of this.root.querySelectorAll("[data-day]"))
+    const tip = this.root.querySelector(".tip");
+    const hide = () => {
+      if (tip) tip.hidden = true;
+    };
+    this.root.querySelector(".scroll")?.addEventListener("scroll", hide);
+    for (const b of this.root.querySelectorAll("[data-day]")) {
+      const show = () => {
+        const date = b.getAttribute("data-day");
+        tip.innerHTML = tipText(date, m.days.get(date), m.timeZone ?? "UTC")
+          .map((l) => `<div>${esc(l)}</div>`)
+          .join("");
+        tip.hidden = false;
+        const card = this.root.querySelector("ha-card").getBoundingClientRect();
+        const r = b.getBoundingClientRect();
+        const left = r.left - card.left + r.width / 2 - tip.offsetWidth / 2;
+        tip.style.left = `${Math.max(0, Math.min(left, card.width - tip.offsetWidth))}px`;
+        tip.style.top = `${Math.max(0, r.top - card.top - tip.offsetHeight - 6)}px`;
+      };
+      b.addEventListener("pointerenter", show);
+      b.addEventListener("focus", show);
+      b.addEventListener("pointerleave", hide);
+      b.addEventListener("blur", hide);
       b.addEventListener("click", () => {
         this.dialogError = undefined;
         this.openDay = b.getAttribute("data-day");
         this.#renderDialog();
       });
+    }
     this.root
       .querySelector("[data-view]")
       ?.addEventListener("click", () =>
