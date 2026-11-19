@@ -1132,7 +1132,7 @@ dev = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "ical", specifier = "==14.3.0" },
+    { name = "ical", specifier = "==14.3.1" },
     { name = "pytest-homeassistant-custom-component", specifier = "==0.13.375" },
     { name = "ruff", specifier = "==0.17.5" },
 ]
@@ -1325,16 +1325,16 @@ wheels = [
 
 [[package]]
 name = "ical"
-version = "14.3.0"
+version = "14.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "python-dateutil" },
     { name = "tzdata" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/15/e6/1b82fa09fd4b245305f63e112796edaab3786aa1ed1ea85ed9adbf02b956/ical-14.3.0.tar.gz", hash = "sha256:6d6165d6d1d6449a3f1cb6e437f2c7ba8794e31e6a0c3162419a82b3e7e7ce76", size = 161006, upload-time = "2026-10-04T22:39:30.363Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b9/c8/e5a94d5da640a71958d3033f0ff4a1fd9c39e599e1033b3c5c59c49b259c/ical-14.3.1.tar.gz", hash = "sha256:2a6ea215effa6a1c9cae93570b648f105fcaeba9677d0f7b3b7d63d0a18085b1", size = 163140, upload-time = "2026-10-20T15:13:53.894Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5a/ca/252019163a2186c95e455f06724f1b4381cfbb5935171bfd31425edab123/ical-14.3.0-py3-none-any.whl", hash = "sha256:40efd0c7d2a14f95c99fd287fa2a65807226f4671b40055f401568ceeb8cb3e4", size = 146707, upload-time = "2026-10-04T22:39:28.775Z" },
+    { url = "https://files.pythonhosted.org/packages/30/50/79753d726ea6c28ca728c60be0b426681931be286ad459ca2f31389d0e39/ical-14.3.1-py3-none-any.whl", hash = "sha256:a70435a53d8c1adfaa6a74a3417d79b3cd871b7e090f27fb0bb83f5e089e2009", size = 147233, upload-time = "2026-10-20T15:13:52.148Z" },
 ]
 
 [[package]]
