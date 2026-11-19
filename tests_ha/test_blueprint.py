@@ -219,3 +219,21 @@ async def test_enter_with_stale_open_visit_closes_it_and_starts_new(gym: Gym) ->
     await gym.at("2026-11-19 19:30:00")
     await gym.away()
     assert len(await gym.events()) == 2
+
+
+async def test_default_midnight_value_is_closed(gym: Gym) -> None:
+    # input_datetime defaults to "<today> 00:00:00" without a restorable state.
+    await gym.set_helper("2026-11-19 00:00:00")
+    await gym.at("2026-11-19 04:01:00")
+    assert await gym.events() == []
+
+
+async def test_enter_after_default_midnight_starts_fresh(gym: Gym) -> None:
+    await gym.set_helper("2026-11-19 00:00:00")
+    await gym.at("2026-11-19 18:00:00")
+    await gym.at_gym()
+    await gym.at("2026-11-19 19:10:00")
+    await gym.away()
+    [ev] = await gym.events()
+    assert span(ev) == ("2026-11-19 18:00:00", "2026-11-19 19:10:00")
+    assert not ev.get("description")

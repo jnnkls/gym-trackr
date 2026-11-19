@@ -6,7 +6,8 @@
     "useIgnoreFile": true
   },
   "files": {
-    "ignoreUnknown": true
+    "ignoreUnknown": true,
+    "includes": ["**", "!CHANGELOG.md", "!.release-please-manifest.json"]
   },
   "formatter": {
     "enabled": true,
