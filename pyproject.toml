@@ -8,7 +8,7 @@ dependencies = []
 [dependency-groups]
 dev = [
   "pytest-homeassistant-custom-component==0.13.375",
-  "ical==14.3.0", # runtime requirement of HA local_calendar, used in tests
+  "ical==14.3.1", # runtime requirement of HA local_calendar, used in tests
   "ruff==0.17.5",
 ]
 
