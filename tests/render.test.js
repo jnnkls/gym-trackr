@@ -1,6 +1,6 @@
 // @ts-check
 import { expect, test } from "vitest";
-import { renderCard, shouldFetch } from "../gym-trackr.js";
+import { renderCard, STYLE, shouldFetch } from "../gym-trackr.js";
 import { day } from "./helpers.js";
 
 test("renders counter and goal", () => {
@@ -12,7 +12,7 @@ test("renders counter and goal", () => {
   );
   const html = renderCard({
     state: "ok",
-    year: 2026,
+    view: 2026,
     firstYear: 2026,
     currentYear: 2026,
     today: "2026-11-19",
@@ -27,7 +27,7 @@ test("marks estimated days", () => {
   const days = new Map([["2026-11-10", { ...day(240), estimated: true }]]);
   const html = renderCard({
     state: "ok",
-    year: 2026,
+    view: 2026,
     firstYear: 2026,
     currentYear: 2026,
     today: "2026-11-19",
@@ -47,17 +47,42 @@ test("renders loading state", () => {
   expect(renderCard({ state: "loading" })).toContain("Lade…");
 });
 
-test("empty disables both nav buttons", () => {
-  const html = renderCard({
-    state: "ok",
-    year: 2026,
-    firstYear: 2026,
-    currentYear: 2026,
-    today: "2026-11-19",
-    days: new Map(),
-  });
+const base = {
+  state: /** @type {const} */ ("ok"),
+  firstYear: 2025,
+  currentYear: 2026,
+  today: "2026-11-19",
+  days: new Map(),
+};
+
+test("window view: title, 90 cells, next disabled, toggle Jahr", () => {
+  const html = renderCard({ ...base, view: "window" });
   expect(html).toContain("0 / 20");
-  expect(html.match(/disabled/g)).toHaveLength(2);
+  expect(html).toContain("Letzte 90 Tage");
+  expect(html).toContain('class="grid window"');
+  const all = html.match(/class="cell l/g)?.length ?? 0;
+  expect(all).toBe(90);
+  expect(html).toMatch(/data-nav="1"[^>]*disabled/);
+  expect(html).not.toMatch(/data-nav="-1"[^>]*disabled/);
+  expect(html).toMatch(/data-view[^>]*>Jahr</);
+});
+
+test("year view: both nav enabled, toggle 90 Tage", () => {
+  const html = renderCard({ ...base, view: 2026 });
+  expect(html).toContain("<span>2026</span>");
+  expect(html).not.toContain("disabled");
+  expect(html).toMatch(/data-view[^>]*>90 Tage</);
+});
+
+test("year view at firstYear disables back", () => {
+  const html = renderCard({ ...base, view: 2025 });
+  expect(html).toMatch(/data-nav="-1"[^>]*disabled/);
+  expect(html).not.toMatch(/data-nav="1"[^>]*disabled/);
+});
+
+test("green colours, no primary-color", () => {
+  expect(STYLE).toContain("#2da44e");
+  expect(STYLE).not.toContain("--primary-color");
 });
 
 test("escapes entity", () => {
@@ -101,7 +126,7 @@ test("tooltip shows times in time zone, all-day and empty cells", () => {
   ]);
   const html = renderCard({
     state: "ok",
-    year: 2026,
+    view: 2026,
     firstYear: 2026,
     currentYear: 2026,
     today: "2026-11-19",

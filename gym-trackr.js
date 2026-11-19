@@ -99,28 +99,40 @@ export function level(day) {
 }
 
 /**
- * @param {number} year
- * @returns {{date:string, inYear:boolean}[][]} columns = weeks, Monday first
+ * @param {string} from YYYY-MM-DD
+ * @param {string} to YYYY-MM-DD
+ * @returns {{date:string, inRange:boolean}[][]} columns = weeks, Monday first
  */
-export function yearGrid(year) {
-  if (!Number.isInteger(year) || year < 1000 || year > 9999) return [];
-  const jan1 = `${year}-01-01`;
-  const dec31 = `${year}-12-31`;
-  const mondayOffset = (new Date(`${jan1}T00:00:00Z`).getUTCDay() + 6) % 7;
+export function weekGrid(from, to) {
+  if (!DATE_KEY.test(from) || !DATE_KEY.test(to) || from > to) return [];
+  const mondayOffset = (new Date(`${from}T00:00:00Z`).getUTCDay() + 6) % 7;
   const cols = [];
   for (
-    let start = addDays(jan1, -mondayOffset);
-    start <= dec31;
+    let start = addDays(from, -mondayOffset);
+    start <= to;
     start = addDays(start, 7)
   ) {
     cols.push(
       Array.from({ length: 7 }, (_, i) => {
         const date = addDays(start, i);
-        return { date, inYear: date.startsWith(`${year}-`) };
+        return { date, inRange: date >= from && date <= to };
       }),
     );
   }
   return cols;
+}
+
+/**
+ * @param {"window"|number} view
+ * @param {number} delta -1 or 1
+ * @param {number} firstYear
+ * @param {number} currentYear
+ * @returns {"window"|number}
+ */
+export function navigate(view, delta, firstYear, currentYear) {
+  if (view === "window") return delta < 0 ? currentYear : view;
+  if (delta < 0) return Math.max(view - 1, firstYear);
+  return view >= currentYear ? "window" : view + 1;
 }
 
 /**
@@ -185,23 +197,28 @@ function tooltip(key, d, timeZone) {
 /**
  * @param {{state:"loading"}
  *  | {state:"error", entity:string}
- *  | {state:"ok", year:number, firstYear:number, currentYear:number, today:string, days:Map<string,Day>, timeZone?:string}} model
+ *  | {state:"ok", view:"window"|number, firstYear:number, currentYear:number, today:string, days:Map<string,Day>, timeZone?:string}} model
  * @returns {string}
  */
 export function renderCard(model) {
   if (model.state === "loading") return "<ha-card>Lade…</ha-card>";
   if (model.state === "error")
     return `<ha-card><div class="msg">Kalender nicht erreichbar: ${esc(model.entity)}</div></ha-card>`;
-  const { year, firstYear, currentYear, today, days } = model;
+  const { view, firstYear, today, days } = model;
   const tz = model.timeZone ?? "UTC";
   const count = countVisits(days, today);
   const check = estimatedCount(days);
-  const cols = yearGrid(year)
+  const win = view === "window";
+  const cols = (
+    win
+      ? weekGrid(addDays(today, -(WINDOW_DAYS - 1)), today)
+      : weekGrid(`${view}-01-01`, `${view}-12-31`)
+  )
     .map(
       (week) =>
         `<div class="week">${week
           .map((c) => {
-            if (!c.inYear) return '<div class="cell out"></div>';
+            if (!c.inRange) return '<div class="cell out"></div>';
             const d = days.get(c.date);
             const cls = `cell l${level(d)}${d?.estimated ? " estimated" : ""}`;
             return `<div class="${cls}" title="${esc(tooltip(c.date, d, tz))}"></div>`;
@@ -209,15 +226,16 @@ export function renderCard(model) {
           .join("")}</div>`,
     )
     .join("");
+  const prevOff = win ? false : view <= firstYear;
   return `<ha-card>
 <div class="head"><span class="count">${count} / ${GOAL}</span> <span class="sub">(letzte ${WINDOW_DAYS} Tage)</span> <span class="goal">${esc(goalText(count))}</span>${check > 0 ? ` <span class="check">${check} Einträge prüfen</span>` : ""}</div>
-<div class="nav"><button data-nav="-1" aria-label="Vorheriges Jahr"${year === firstYear ? " disabled" : ""}>&lt;</button><span>${year}</span><button data-nav="1" aria-label="Nächstes Jahr"${year === currentYear ? " disabled" : ""}>&gt;</button></div>
-<div class="scroll"><div class="grid">${cols}</div></div>
+<div class="nav"><button data-nav="-1" aria-label="Zurück"${prevOff ? " disabled" : ""}>‹</button><button data-view aria-label="Ansicht wechseln">${win ? "Jahr" : "90 Tage"}</button><button data-nav="1" aria-label="Weiter"${win ? " disabled" : ""}>›</button><span>${win ? "Letzte 90 Tage" : view}</span></div>
+<div class="${win ? "" : "scroll"}"><div class="grid${win ? " window" : ""}">${cols}</div></div>
 </ha-card>`;
 }
 
-const STYLE = `
-:host{display:block}
+export const STYLE = `
+:host{display:block;--gt-green:#2da44e}
 ha-card{padding:16px;color:var(--primary-text-color)}
 .sub,.goal{color:var(--secondary-text-color)}
 .check{color:var(--error-color)}
@@ -226,10 +244,13 @@ ha-card{padding:16px;color:var(--primary-text-color)}
 .grid{display:flex;gap:3px;width:max-content}
 .week{display:flex;flex-direction:column;gap:3px}
 .cell{width:12px;height:12px;border-radius:2px;box-sizing:border-box;background:var(--divider-color)}
+.grid.window{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,auto);grid-auto-columns:1fr;gap:3px;width:100%}
+.window .week{display:contents}
+.window .cell{aspect-ratio:1;width:auto;height:auto}
 .cell.out{visibility:hidden}
-.l1{background:color-mix(in srgb,var(--primary-color) 35%,var(--card-background-color))}
-.l2{background:color-mix(in srgb,var(--primary-color) 65%,var(--card-background-color))}
-.l3{background:var(--primary-color)}
+.l1{background:color-mix(in srgb,var(--gt-green) 35%,var(--card-background-color))}
+.l2{background:color-mix(in srgb,var(--gt-green) 65%,var(--card-background-color))}
+.l3{background:var(--gt-green)}
 .cell.estimated{outline:2px solid var(--error-color);outline-offset:-2px}
 `;
 
@@ -261,7 +282,7 @@ export const isStaleResponse = (requested, current) => requested !== current;
 class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
   /** @type {string} */ entity = "";
   /** @type {any} */ model = { state: "loading" };
-  /** @type {number|undefined} */ year;
+  /** @type {"window"|number} */ view = "window";
   /** @type {number|undefined} */ lastFetch;
   lastFailed = false;
   /** @type {any} */ root;
@@ -302,7 +323,10 @@ class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
       this.lastFailed = false;
       this.model = {
         state: "ok",
-        year: Math.min(this.year ?? currentYear, currentYear),
+        view:
+          typeof this.view === "number"
+            ? Math.min(this.view, currentYear)
+            : this.view,
         firstYear: firstYear(days, currentYear),
         currentYear,
         today,
@@ -317,19 +341,38 @@ class GymTrackrCard extends (globalThis.HTMLElement ?? class {}) {
     }
   }
 
-  #render() {
+  /** @param {boolean} [toEnd] scroll to the right end (entering current year) */
+  #render(toEnd = false) {
     this.root ??= this.attachShadow({ mode: "open" });
     // Keep the scroll position across refreshes; first render shows today (right end).
     const before = this.root.querySelector(".scroll")?.scrollLeft;
     this.root.innerHTML = `<style>${STYLE}</style>${renderCard(this.model)}`;
     const scroll = this.root.querySelector(".scroll");
-    if (scroll) scroll.scrollLeft = before ?? scroll.scrollWidth;
+    if (scroll)
+      scroll.scrollLeft = toEnd
+        ? scroll.scrollWidth
+        : (before ?? scroll.scrollWidth);
+    const m = this.model;
+    const go = (/** @type {"window"|number} */ v) => {
+      this.view = m.view = v;
+      this.#render(typeof v === "number" && v === m.currentYear);
+    };
     for (const b of this.root.querySelectorAll("[data-nav]"))
-      b.addEventListener("click", () => {
-        this.year = this.model.year + Number(b.getAttribute("data-nav"));
-        this.model.year = this.year;
-        this.#render();
-      });
+      b.addEventListener("click", () =>
+        go(
+          navigate(
+            m.view,
+            Number(b.getAttribute("data-nav")),
+            m.firstYear,
+            m.currentYear,
+          ),
+        ),
+      );
+    this.root
+      .querySelector("[data-view]")
+      ?.addEventListener("click", () =>
+        go(m.view === "window" ? m.currentYear : "window"),
+      );
   }
 }
 
