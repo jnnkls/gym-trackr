@@ -91,7 +91,7 @@ test("escapes entity", () => {
   );
 });
 
-test("tooltip shows times in time zone, all-day and empty cells", () => {
+test("cell aria-labels show times in time zone, all-day and empty cells", () => {
   const days = new Map([
     [
       "2026-11-10",
@@ -133,9 +133,12 @@ test("tooltip shows times in time zone, all-day and empty cells", () => {
     days,
     timeZone: "Europe/Berlin",
   });
-  expect(html).toContain('title="10.11.2026: 18:00–19:00 (60 min)"');
-  expect(html).toContain('title="11.11.2026: Dauer unbekannt"');
-  expect(html).toContain('title="12.11.2026"');
+  expect(html).not.toContain("title=");
+  expect(html).toContain('aria-label="Di., 10.11.2026, 18:00–19:00 (60 min)"');
+  expect(html).toContain(
+    'aria-label="Mi., 11.11.2026, ganztägig (Dauer unbekannt)"',
+  );
+  expect(html).toContain('aria-label="Do., 12.11.2026, Kein Besuch"');
 });
 
 test("shouldFetch: 5 min normally, 30 s backoff after failure", () => {
@@ -216,4 +219,21 @@ test("year-view cell buttons keep their 12px size", () => {
   const rule = STYLE.match(/button\.cell\{[^}]*\}/)?.[0] ?? "";
   expect(rule).not.toMatch(/height/);
   expect(STYLE).toMatch(/\.cell\{[^}]*height:12px/);
+});
+
+test("renderCard: weekday labels, legend and month labels", () => {
+  const html = renderCard({ ...base, view: 2026 });
+  expect(html).toContain('<div class="wd">Mo</div>');
+  expect(html).toContain('<div class="wd">Fr</div>');
+  expect(html).toContain("Weniger");
+  expect(html).toContain("Mehr");
+  expect(html).toContain('<div class="m">Jan</div>');
+  expect(html).toContain('<div class="m">Dez</div>');
+  expect(html).not.toContain("title=");
+});
+
+test("window view has month labels and 90 cells despite legend swatches", () => {
+  const html = renderCard({ ...base, view: "window" });
+  expect(html).toContain('<div class="m">Okt</div>');
+  expect(html.match(/class="cell l/g)?.length).toBe(90);
 });
