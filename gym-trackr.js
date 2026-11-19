@@ -306,7 +306,7 @@ button:hover{background:rgba(var(--rgb-primary-text-color,255,255,255),.1)}
 button:disabled{opacity:.4;cursor:default}
 button.primary{background:var(--gt-green);color:#fff}
 button.del{color:var(--error-color)}
-button.cell{padding:0;height:auto;min-width:0;border-radius:2px}
+button.cell{padding:0;min-width:0;border-radius:2px}
 dialog{background:var(--card-background-color);color:var(--primary-text-color);border:none;border-radius:var(--ha-card-border-radius,12px);padding:16px;min-width:min(360px,90vw)}
 .dhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .visit{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0}

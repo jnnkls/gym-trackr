@@ -210,3 +210,10 @@ test("renderCard: in-range cells are buttons, out cells are not", () => {
   expect(html).toContain('<div class="cell out"></div>');
   expect(html).not.toMatch(/<button class="cell out/);
 });
+
+test("year-view cell buttons keep their 12px size", () => {
+  // regression: button.cell{height:auto} outranked .cell{height:12px} and collapsed the year grid
+  const rule = STYLE.match(/button\.cell\{[^}]*\}/)?.[0] ?? "";
+  expect(rule).not.toMatch(/height/);
+  expect(STYLE).toMatch(/\.cell\{[^}]*height:12px/);
+});
